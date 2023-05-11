@@ -1,0 +1,61 @@
+---
+title: "Flipr QC analysis"
+author: "Ruben van Helden"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("E:/OneDrive - HeartBeat.bio AG/Custom R work/Flipr pre QC")
+library(tidyverse)
+library(cowplot)
+library(readxl)
+library(knitr)
+```
+
+## Import data and check
+```{r import data}
+files <- tibble(Loc = list.files(recursive = TRUE, pattern = "xls")) %>% 
+  separate(Loc, into = c("x", "y", "File"), remove = FALSE, sep = "/") %>% 
+  separate(File, into = c("Date", "Exp", "Line", "Passage", "Day", "DP", "Time", "z", "w"), sep = "_") %>% 
+  filter(Time == "n001") %>% 
+  select(-x, -y, -z , -w, -Time)
+
+
+do.call_rbind <- function(fl) {
+    do.call(rbind, lapply(fl, function(x) suppressWarnings(read_xls(x, sheet = 2, 
+                                                   col_types = c("text", "numeric", "numeric", 
+                                                                 "numeric", "numeric", "numeric", 
+                                                                 "numeric", "numeric", "numeric"))) %>% 
+                            mutate(Loc = x)))
+}
+
+df <- do.call_rbind(files%>% pull(Loc)) %>% 
+  left_join(files, by = "Loc") %>% 
+  mutate(Time = as.double(substring(Day, 2)))
+  
+kable(head(df,10))
+glimpse(df)
+  
+```
+
+## plot data time course
+```{r}
+seqplot <- function(x){
+  plot <- ggplot(df, aes(x = Time, y = .data[[x]], colour = Line, fill = DP))+
+    #geom_jitter(width = 0.1, size = 0.25, alpha = 0.75)+
+    #geom_violin(aes(Group = cut_width(Time, 1)), scale = "width", width = 0.5)+
+    stat_summary(fun = mean, geom = "line", aes(linetype = DP))+
+    stat_summary(fun.data = mean_se, geom = "errorbar")+
+    labs(x = "Time (days)")+
+    theme_cowplot()+
+    background_grid()
+  plot(plot)
+}
+
+nam <- names(df)[c(2:6,8)]
+sapply(nam, seqplot)
+
+```
+
